@@ -25,7 +25,10 @@ jobs:
           distribution: temurin
           java-version-file: EhViewer/.java-version
 
+      # Must run inside the submodule so rustup reads rust-toolchain.toml
+      # and installs the target for the project's nightly toolchain.
       - name: Add Rust Android target
+        working-directory: EhViewer
         run: rustup target add thumbv7neon-linux-androideabi
 
       - name: Rust Cache
