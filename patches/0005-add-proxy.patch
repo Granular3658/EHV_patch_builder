@@ -1,0 +1,268 @@
+diff --git a/app/src/main/kotlin/com/hippo/ehviewer/Settings.kt b/app/src/main/kotlin/com/hippo/ehviewer/Settings.kt
+index 27f94ec5c..027379f9b 100644
+--- a/app/src/main/kotlin/com/hippo/ehviewer/Settings.kt
++++ b/app/src/main/kotlin/com/hippo/ehviewer/Settings.kt
+@@ -156,6 +156,10 @@ object Settings : DataStorePreferences(null) {
+     val dwarfsCacheSize = intPref("dwarfs_cache_size_mb", 128)
+     val enableCronet = boolPref("enable_cronet", true)
+     val enableQuic = boolPref("enable_quic", false)
++    // Proxy (restored from the historical in-app proxy support)
++    var proxyType by intPref("proxy_type", EhProxySelector.TYPE_SYSTEM)
++    var proxyPort by intPref("proxy_port", -1)
++    var proxyIp by stringOrNullPref("proxy_ip", null)
+     val hardwareBitmapThreshold = intPref("hardware_bitmap_threshold", 16384)
+     val preloadThumbAggressively = boolPref("preload_thumb_aggressively", false)
+     val animateItems = boolPref("animate_items", true)
+diff --git a/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt b/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt
+index 121160228..76a2781d9 100644
+--- a/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt
++++ b/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt
+@@ -1,5 +1,6 @@
+ package com.hippo.ehviewer.ktor
+ 
++import com.hippo.ehviewer.EhProxySelector
+ import com.hippo.ehviewer.Settings
+ import com.hippo.ehviewer.client.EhDns
+ import com.hippo.ehviewer.client.EhSSLSocketFactory
+@@ -10,7 +11,7 @@ import java.net.Proxy
+ fun OkHttpConfig.configureClient() {
+     config {
+         dns(EhDns)
+-        proxy(Proxy.NO_PROXY)
++        proxy(EhProxySelector.currentProxy)
+         if (!Settings.enableQuic.value) {
+             install(EhSSLSocketFactory)
+         }
+diff --git a/app/src/main/kotlin/com/hippo/ehviewer/ui/settings/AdvancedScreen.kt b/app/src/main/kotlin/com/hippo/ehviewer/ui/settings/AdvancedScreen.kt
+index 53423a7a0..320b2864d 100644
+--- a/app/src/main/kotlin/com/hippo/ehviewer/ui/settings/AdvancedScreen.kt
++++ b/app/src/main/kotlin/com/hippo/ehviewer/ui/settings/AdvancedScreen.kt
+@@ -12,12 +12,22 @@ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.AnimatedVisibilityScope
++import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.text.KeyboardOptions
+ import androidx.compose.foundation.verticalScroll
++import androidx.compose.material3.AlertDialog
++import androidx.compose.material3.RadioButton
+ import androidx.compose.material3.Scaffold
+ import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.TextField
+ import androidx.compose.material3.TopAppBar
+ import androidx.compose.material3.TopAppBarDefaults
+ import androidx.compose.runtime.Composable
+@@ -26,9 +36,11 @@ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.input.nestedscroll.nestedScroll
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.input.KeyboardType
+ import androidx.core.net.toUri
+ import com.ehviewer.core.files.delete
+ import com.ehviewer.core.files.sendTo
+@@ -40,6 +52,7 @@ import com.ehviewer.core.util.logcat
+ import com.ehviewer.core.util.withIOContext
+ import com.hippo.ehviewer.BuildConfig
+ import com.hippo.ehviewer.EhDB
++import com.hippo.ehviewer.EhProxySelector
+ import com.hippo.ehviewer.Settings
+ import com.hippo.ehviewer.asMutableState
+ import com.hippo.ehviewer.client.EhEngine
+@@ -234,6 +247,36 @@ fun AnimatedVisibilityScope.AdvancedScreen(navigator: DestinationsNavigator) = S
+                     }
+                 }
+             }
++            // Proxy settings (restored from historical in-app proxy support)
++            val proxyType by Settings.proxyType.collectAsState()
++            val proxyIp by Settings.proxyIp.collectAsState()
++            val proxyPort by Settings.proxyPort.collectAsState()
++            var showProxyDialog by remember { mutableStateOf(false) }
++            val proxySummary = when (proxyType) {
++                EhProxySelector.TYPE_DIRECT -> stringResource(R.string.settings_proxy_direct)
++                EhProxySelector.TYPE_SYSTEM -> stringResource(R.string.settings_proxy_system)
++                EhProxySelector.TYPE_HTTP, EhProxySelector.TYPE_SOCKS ->
++                    string(R.string.settings_proxy_custom_format, proxyIp ?: "", proxyPort)
++                else -> ""
++            }
++            Preference(
++                title = { Text(stringResource(R.string.settings_proxy_title)) },
++                summary = { Text(proxySummary) },
++            ) { showProxyDialog = true }
++            if (showProxyDialog) {
++                ProxySettingsDialog(
++                    initialType = proxyType,
++                    initialHost = proxyIp ?: "",
++                    initialPort = if (proxyPort > 0) proxyPort.toString() else "",
++                    onDismiss = { showProxyDialog = false },
++                    onConfirm = { type, host, port ->
++                        Settings.proxyType = type
++                        Settings.proxyIp = host.ifBlank { null }
++                        Settings.proxyPort = port.toIntOrNull() ?: -1
++                        showProxyDialog = false
++                    },
++                )
++            }
+             if (isAtLeastO) {
+                 IntSliderPreference(
+                     maxValue = 16384,
+@@ -357,3 +400,63 @@ private fun openByDefaultSettings() = with(ctx) {
+         startActivity(intent)
+     }
+ }
++
++@Composable
++private fun ProxySettingsDialog(
++    initialType: Int,
++    initialHost: String,
++    initialPort: String,
++    onDismiss: () -> Unit,
++    onConfirm: (type: Int, host: String, port: String) -> Unit,
++) {
++    var selectedType by remember { mutableStateOf(initialType) }
++    var host by remember { mutableStateOf(initialHost) }
++    var port by remember { mutableStateOf(initialPort) }
++    val types = listOf(
++        EhProxySelector.TYPE_DIRECT to stringResource(R.string.settings_proxy_direct),
++        EhProxySelector.TYPE_SYSTEM to stringResource(R.string.settings_proxy_system),
++        EhProxySelector.TYPE_HTTP to stringResource(R.string.settings_proxy_http),
++        EhProxySelector.TYPE_SOCKS to stringResource(R.string.settings_proxy_socks),
++    )
++    AlertDialog(
++        onDismissRequest = onDismiss,
++        title = { Text(stringResource(R.string.settings_proxy_dialog_title)) },
++        text = {
++            Column {
++                types.forEach { (type, label) ->
++                    Row(verticalAlignment = Alignment.CenterVertically) {
++                        RadioButton(selected = selectedType == type, onClick = { selectedType = type })
++                        Text(label, modifier = Modifier.clickable { selectedType = type })
++                    }
++                }
++                Spacer(Modifier.height(8.dp))
++                TextField(
++                    value = host,
++                    onValueChange = { host = it },
++                    label = { Text(stringResource(R.string.settings_proxy_host_hint)) },
++                    singleLine = true,
++                    modifier = Modifier.fillMaxWidth(),
++                )
++                Spacer(Modifier.height(8.dp))
++                TextField(
++                    value = port,
++                    onValueChange = { port = it.filter { c -> c.isDigit() } },
++                    label = { Text(stringResource(R.string.settings_proxy_port_hint)) },
++                    singleLine = true,
++                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
++                    modifier = Modifier.fillMaxWidth(),
++                )
++            }
++        },
++        confirmButton = {
++            TextButton(onClick = { onConfirm(selectedType, host.trim(), port.trim()) }) {
++                Text(stringResource(R.string.settings_proxy_save))
++            }
++        },
++        dismissButton = {
++            TextButton(onClick = onDismiss) {
++                Text(stringResource(R.string.settings_proxy_cancel))
++            }
++        },
++    )
++}
+diff --git a/core/i18n/src/commonMain/moko-resources/base/strings.xml b/core/i18n/src/commonMain/moko-resources/base/strings.xml
+index 5053323cc..4c8ab7541 100644
+--- a/core/i18n/src/commonMain/moko-resources/base/strings.xml
++++ b/core/i18n/src/commonMain/moko-resources/base/strings.xml
+@@ -432,6 +432,18 @@
+     <string name="settings_advanced_export_data">Export data</string>
+     <string name="settings_advanced_export_data_summary">Save data like download list, quick search list, to external storage</string>
+     <string name="settings_advanced_export_data_to">Exported data to %s</string>
++    <!-- Proxy (restored from historical in-app proxy support) -->
++    <string name="settings_proxy_title">Proxy</string>
++    <string name="settings_proxy_direct">Direct (no proxy)</string>
++    <string name="settings_proxy_system">System proxy</string>
++    <string name="settings_proxy_http">HTTP proxy</string>
++    <string name="settings_proxy_socks">SOCKS proxy</string>
++    <string name="settings_proxy_custom_format">%1$s:%2$s</string>
++    <string name="settings_proxy_dialog_title">Proxy settings</string>
++    <string name="settings_proxy_host_hint">Host / IP</string>
++    <string name="settings_proxy_port_hint">Port</string>
++    <string name="settings_proxy_save">Save</string>
++    <string name="settings_proxy_cancel">Cancel</string>
+     <string name="settings_advanced_export_data_failed">Failed to export data</string>
+     <string name="settings_advanced_import_data">Import data</string>
+     <string name="settings_advanced_import_data_summary">Load data which were previously saved</string>
+diff --git a/app/src/main/kotlin/com/hippo/ehviewer/EhProxySelector.kt b/app/src/main/kotlin/com/hippo/ehviewer/EhProxySelector.kt
+new file mode 100644
+index 000000000..71faf7601
+--- /dev/null
++++ b/app/src/main/kotlin/com/hippo/ehviewer/EhProxySelector.kt
+@@ -0,0 +1,56 @@
++/*
++ * Copyright 2019 Hippo Seven
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.hippo.ehviewer
++
++import com.hippo.ehviewer.Settings.proxyIp
++import com.hippo.ehviewer.Settings.proxyPort
++import com.hippo.ehviewer.Settings.proxyType
++import java.net.InetAddress
++import java.net.InetSocketAddress
++import java.net.Proxy
++
++/**
++ * Restored from the historical in-app proxy support that was dropped in
++ * 53bbabab75. Builds the [Proxy] the OkHttp engine should use based on the
++ * user-configured proxy type / host / port in [Settings].
++ */
++object EhProxySelector {
++    const val TYPE_DIRECT = 0
++    const val TYPE_SYSTEM = 1
++    const val TYPE_HTTP = 2
++    const val TYPE_SOCKS = 3
++
++    val currentProxy: Proxy
++        get() = when (proxyType) {
++            TYPE_DIRECT, TYPE_SYSTEM -> Proxy.NO_PROXY
++            TYPE_HTTP -> buildProxy(Proxy.Type.HTTP)
++            TYPE_SOCKS -> buildProxy(Proxy.Type.SOCKS)
++            else -> Proxy.NO_PROXY
++        }
++
++    private fun buildProxy(type: Proxy.Type): Proxy {
++        val ip = proxyIp
++        val port = proxyPort
++        if (!ip.isNullOrEmpty() && port in 1..65535) {
++            runCatching {
++                val address = InetSocketAddress(InetAddress.getByName(ip), port)
++                return Proxy(type, address)
++            }
++        }
++        return Proxy.NO_PROXY
++    }
++}

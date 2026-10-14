@@ -16,7 +16,10 @@
 | `0002-disable-cronet.sh` | 把 `enableCronet` 改成 `enableQuic`，并把 `enable_quic` 默认值改为 `false`（默认走 OkHttp 直连而非 Cronet/QUIC） |
 | `0003-disable-autoupdate.sh` | 关闭自动更新检查（默认在 `apply.sh` 中注释，不启用） |
 | `0004-increase-request-timeout.sh` | 请求超时 `10_000` → `30_000` |
+| `0005-add-proxy.patch` | 恢复历史上的「应用内代理」能力：新增 `EhProxySelector.kt`（按 `Settings` 中的类型/主机/端口生成 OkHttp `Proxy`），在 `OkhttpExtensions.kt` 用 `EhProxySelector.currentProxy` 替换原来的 `Proxy.NO_PROXY`，并在设置页（`AdvancedScreen`）加一个代理设置对话框、在 `Settings` 加 `proxyType`/`proxyIp`/`proxyPort` 三项偏好 |
 | `apply.sh` | 依次执行上述补丁；最后把 `applicationId` 加 `.cc` 后缀（对本 fork 包名无影响，属无害 no-op） |
+
+> 代理设置源于 EhViewer 早期版本（OkHttp 时代）内置的「自设代理地址」选项，后被 `53bbabab75 [DO NOT USE] Drop in-app proxy support` 删除。这里把它以现代 Compose 形式重新接回 `feat/smb-memfd` 的 OkHttp 引擎：直连 / 系统代理 / HTTP / SOCKS 四种模式，主机与端口在设置页内填写。默认是「系统代理」（与原 0002 直连意图可叠加：选直连即不走任何代理，选系统则跟随系统，选 HTTP/SOCKS 则走你填的地址）。
 
 > 注意：`0002` 会把 `enable_quic` 默认关掉，也就是**默认启用直连模式**。若你希望默认仍用 Cronet/QUIC，编辑 `0002-disable-cronet.sh` 把 `false` 改回 `true` 即可。
 
