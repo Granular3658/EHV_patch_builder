@@ -1,0 +1,91 @@
+name: Build Patched EhViewer
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version-file: EhViewer/.java-version
+
+      - name: Add Rust Android target
+        run: rustup target add thumbv7neon-linux-androideabi
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./EhViewer/app/src/main/rust"
+          shared-key: ${{ runner.os }}
+          save-if: "false"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: CMake Cache
+        uses: actions/cache@v5
+        with:
+          path: EhViewer/app/.cxx
+          key: cmake-default-${{ hashFiles('EhViewer/rust-toolchain.toml', 'EhViewer/settings.gradle.kts', 'EhViewer/app/src/main/cpp/CMakeLists.txt', 'EhViewer/app/src/main/rust/Cargo.lock') }}
+          restore-keys: cmake-default-
+
+      - name: Apply anti-censorship patches
+        working-directory: EhViewer
+        run: bash ../patches/apply.sh
+
+      - name: Build Default Release
+        working-directory: EhViewer
+        run: ./gradlew assembleDefaultRelease
+
+      - name: Upload ARM64
+        uses: actions/upload-artifact@v7
+        with:
+          name: default-arm64-v8a-${{ github.sha }}
+          path: EhViewer/app/build/outputs/apk/default/release/app-default-arm64-v8a-release.apk
+
+      - name: Upload x86_64
+        uses: actions/upload-artifact@v7
+        with:
+          name: default-x86_64-${{ github.sha }}
+          path: EhViewer/app/build/outputs/apk/default/release/app-default-x86_64-release.apk
+
+      - name: Upload ARM32
+        uses: actions/upload-artifact@v7
+        with:
+          name: default-armeabi-v7a-${{ github.sha }}
+          path: EhViewer/app/build/outputs/apk/default/release/app-default-armeabi-v7a-release.apk
+
+      - name: Upload universal
+        uses: actions/upload-artifact@v7
+        with:
+          name: default-universal-${{ github.sha }}
+          path: EhViewer/app/build/outputs/apk/default/release/app-default-universal-release.apk
+
+      - name: Upload mapping
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: default-mapping-${{ github.sha }}
+          path: EhViewer/app/build/outputs/mapping/defaultRelease/*.txt
+
+      - name: Upload native debug symbols
+        uses: actions/upload-artifact@v7
+        with:
+          name: default-native-debug-symbols-${{ github.sha }}
+          path: EhViewer/app/build/outputs/native-debug-symbols/defaultRelease/native-debug-symbols.zip

@@ -1,0 +1,49 @@
+# EHV_patch_builder
+
+把反审查直连补丁（源自 [UjuiUjuMandan/EhViewer](https://github.com/UjuiUjuMandan/EhViewer)）自动叠加到本仓库的 EhViewer fork 上并出包。
+
+仓库本身**不包含应用源码**，只持有：
+
+- `EhViewer/` —— git 子模块，指向 `Granular3658/EhViewer` 的 `feat/smb-memfd` 分支，固定 pin 在 `d34106c29bb`（已用 memfd 方案构建验证）。
+- `patches/` —— 需要叠加的补丁与 `apply.sh`。
+- `.github/workflows/build.yml` —— GitHub Actions：检出子模块 → 打补丁 → 编译 `assembleDefaultRelease` → 上传各 ABI 的 APK 与符号。
+
+## 补丁说明（来自 UjuiUjuMandan）
+
+| 文件 | 作用 |
+|------|------|
+| `0001-anti-dpi.patch` | 新增 `EhHostsConfig.kt` / `client/EhDns.kt` / `client/EhSSLSocketFactory.kt`，并把 OkHttp 引擎切换到自定义 DNS / SSL 直连通道 |
+| `0002-disable-cronet.sh` | 把 `enableCronet` 改成 `enableQuic`，并把 `enable_quic` 默认值改为 `false`（默认走 OkHttp 直连而非 Cronet/QUIC） |
+| `0003-disable-autoupdate.sh` | 关闭自动更新检查（默认在 `apply.sh` 中注释，不启用） |
+| `0004-increase-request-timeout.sh` | 请求超时 `10_000` → `30_000` |
+| `apply.sh` | 依次执行上述补丁；最后把 `applicationId` 加 `.cc` 后缀（对本 fork 包名无影响，属无害 no-op） |
+
+> 注意：`0002` 会把 `enable_quic` 默认关掉，也就是**默认启用直连模式**。若你希望默认仍用 Cronet/QUIC，编辑 `0002-disable-cronet.sh` 把 `false` 改回 `true` 即可。
+
+## 本地复现
+
+```bash
+git clone --recurse-submodules <this-repo-url>
+cd EhViewer
+bash ../patches/apply.sh
+./gradlew assembleDefaultRelease
+```
+
+## 更新子模块 pin
+
+子模块固定在 `feat/smb-memfd` 的某个 commit。要跟进该分支最新代码：
+
+```bash
+cd EhViewer
+git fetch origin feat/smb-memfd
+git checkout <新commit>
+cd ..
+git add EhViewer
+git commit -m "bump EhViewer submodule to <新commit>"
+```
+
+若 `0001` 在新 commit 上 `git apply` 失败（上游上下文变动），需重新 `git diff` 生成补丁。
+
+## CI
+
+每次 push 到 `main`、开 PR 或手动 `workflow_dispatch` 都会触发构建，产物（APK / mapping / native 符号）作为 artifact 上传，保留在对应 Actions run 中。

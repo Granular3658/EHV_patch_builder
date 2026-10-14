@@ -1,0 +1,4 @@
+[submodule "EhViewer"]
+	path = EhViewer
+	url = https://github.com/Granular3658/EhViewer.git
+	branch = feat/smb-memfd
