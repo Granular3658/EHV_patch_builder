@@ -20,6 +20,8 @@
 | `apply.sh` | 依次执行上述补丁；最后把 `applicationId` 加 `.cc` 后缀（对本 fork 包名无影响，属无害 no-op） |
 
 > 代理设置源于 EhViewer 早期版本（OkHttp 时代）内置的「自设代理地址」选项，后被 `53bbabab75 [DO NOT USE] Drop in-app proxy support` 删除。这里把它以现代 Compose 形式重新接回 `feat/smb-memfd` 的 OkHttp 引擎：直连 / 系统代理 / HTTP / SOCKS 四种模式，主机与端口在设置页内填写。默认是「系统代理」（与原 0002 直连意图可叠加：选直连即不走任何代理，选系统则跟随系统，选 HTTP/SOCKS 则走你填的地址）。
+>
+> 注意：代理设置对话框的文案使用字面量字符串（非 moko 生成的资源），因为新加的 moko 字符串在 CI 里 AAPT `R` 重建不可靠；如需本地化，把 `AdvancedScreen.kt` 中的字面量换成 `R.string.*` 并确保资源重新生成即可。
 
 > 注意：`0002` 会把 `enable_quic` 默认关掉，也就是**默认启用直连模式**。若你希望默认仍用 Cronet/QUIC，编辑 `0002-disable-cronet.sh` 把 `false` 改回 `true` 即可。
 
