@@ -4,7 +4,7 @@
 
 仓库本身**不包含应用源码**，只持有：
 
-- `EhViewer/` —— git 子模块，指向 `Granular3658/EhViewer` 的 `feat/smb-memfd` 分支，固定 pin 在 `d34106c29bb`（已用 memfd 方案构建验证）。
+- `EhViewer/` —— git 子模块，指向 `Granular3658/EhViewer` 的 `feat/smb-memfd` 分支，固定 pin 在 `ed27cbfab`（已用 memfd 方案构建验证）。
 - `patches/` —— 需要叠加的补丁与 `apply.sh`。
 - `.github/workflows/build.yml` —— GitHub Actions：检出子模块 → 打补丁 → 编译 `assembleDefaultRelease` → 上传各 ABI 的 APK 与符号。
 
