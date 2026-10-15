@@ -1,6 +1,6 @@
 diff --git a/app/src/main/kotlin/com/hippo/ehviewer/EhProxySelector.kt b/app/src/main/kotlin/com/hippo/ehviewer/EhProxySelector.kt
 new file mode 100644
-index 000000000..00d54c39d
+index 000000000..ae2726709
 --- /dev/null
 +++ b/app/src/main/kotlin/com/hippo/ehviewer/EhProxySelector.kt
 @@ -0,0 +1,56 @@
@@ -42,9 +42,9 @@ index 000000000..00d54c39d
 +
 +    val currentProxy: Proxy
 +        get() = when (proxyType.value) {
-+            TYPE_DIRECT, TYPE_SYSTEM -> Proxy.NO_PROXY
 +            TYPE_HTTP -> buildProxy(Proxy.Type.HTTP)
 +            TYPE_SOCKS -> buildProxy(Proxy.Type.SOCKS)
++            // TYPE_DIRECT, TYPE_SYSTEM and any unrecognised value all mean "no proxy".
 +            else -> Proxy.NO_PROXY
 +        }
 +
@@ -75,8 +75,21 @@ index 27f94ec5c..dcf36b48e 100644
      val hardwareBitmapThreshold = intPref("hardware_bitmap_threshold", 16384)
      val preloadThumbAggressively = boolPref("preload_thumb_aggressively", false)
      val animateItems = boolPref("animate_items", true)
+diff --git a/app/src/main/kotlin/com/hippo/ehviewer/client/EhSSLSocketFactory.kt b/app/src/main/kotlin/com/hippo/ehviewer/client/EhSSLSocketFactory.kt
+index 1227df551..317f53e2a 100644
+--- a/app/src/main/kotlin/com/hippo/ehviewer/client/EhSSLSocketFactory.kt
++++ b/app/src/main/kotlin/com/hippo/ehviewer/client/EhSSLSocketFactory.kt
+@@ -27,7 +27,7 @@ object EhSSLSocketFactory : SSLSocketFactory() {
+     override fun createSocket(host: InetAddress, port: Int): Socket = sslSocketFactory.createSocket(host, port)
+     override fun createSocket(address: InetAddress, port: Int, localAddress: InetAddress, localPort: Int): Socket = sslSocketFactory.createSocket(address, port, localAddress, localPort)
+ 
+-    private fun resolveHost(socket: Socket, host: String): String = socket.inetAddress.hostAddress.takeIf {
++    private fun resolveHost(socket: Socket, host: String): String = socket.inetAddress?.hostAddress.takeIf {
+         host in dFEnabledDomains || EXCEPTIONAL_DOMAIN in host
+     } ?: host
+ }
 diff --git a/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt b/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt
-index 121160228..76a2781d9 100644
+index 121160228..885bd38f6 100644
 --- a/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt
 +++ b/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt
 @@ -1,5 +1,6 @@
@@ -86,15 +99,21 @@ index 121160228..76a2781d9 100644
  import com.hippo.ehviewer.Settings
  import com.hippo.ehviewer.client.EhDns
  import com.hippo.ehviewer.client.EhSSLSocketFactory
-@@ -10,7 +11,7 @@ import java.net.Proxy
+@@ -10,8 +11,12 @@ import java.net.Proxy
  fun OkHttpConfig.configureClient() {
      config {
          dns(EhDns)
 -        proxy(Proxy.NO_PROXY)
-+        proxy(EhProxySelector.currentProxy)
-         if (!Settings.enableQuic.value) {
+-        if (!Settings.enableQuic.value) {
++        val proxy = EhProxySelector.currentProxy
++        proxy(proxy)
++        // The SNI rewrite only applies to a direct connection: through a proxy the
++        // destination is resolved by the proxy (OkHttp hands SOCKS routes an unresolved
++        // address), so there is no destination address to put in the SNI.
++        if (!Settings.enableQuic.value && proxy == Proxy.NO_PROXY) {
              install(EhSSLSocketFactory)
          }
+     }
 diff --git a/app/src/main/kotlin/com/hippo/ehviewer/ui/settings/AdvancedScreen.kt b/app/src/main/kotlin/com/hippo/ehviewer/ui/settings/AdvancedScreen.kt
 index 53423a7a0..3ad6f05d9 100644
 --- a/app/src/main/kotlin/com/hippo/ehviewer/ui/settings/AdvancedScreen.kt

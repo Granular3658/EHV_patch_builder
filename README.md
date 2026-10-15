@@ -16,10 +16,10 @@
 | `0002-disable-cronet.sh` | 把 `enableCronet` 改成 `enableQuic`，并把 `enable_quic` 默认值改为 `false`（默认走 OkHttp 直连而非 Cronet/QUIC） |
 | `0003-disable-autoupdate.sh` | 关闭自动更新检查（默认在 `apply.sh` 中注释，不启用） |
 | `0004-increase-request-timeout.sh` | 请求超时 `10_000` → `30_000` |
-| `0005-add-proxy.patch` | 恢复历史上的「应用内代理」能力：新增 `EhProxySelector.kt`（按 `Settings` 中的类型/主机/端口生成 OkHttp `Proxy`），在 `OkhttpExtensions.kt` 用 `EhProxySelector.currentProxy` 替换原来的 `Proxy.NO_PROXY`，并在设置页（`AdvancedScreen`）加一个代理设置对话框、在 `Settings` 加 `proxyType`/`proxyIp`/`proxyPort` 三项偏好 |
+| `0005-add-proxy.patch` | 恢复历史上的「应用内代理」能力：新增 `EhProxySelector.kt`（按 `Settings` 中的类型/主机/端口生成 OkHttp `Proxy`），在 `OkhttpExtensions.kt` 用 `EhProxySelector.currentProxy` 替换原来的 `Proxy.NO_PROXY`，并在设置页（`AdvancedScreen`）加一个代理设置对话框、在 `Settings` 加 `proxyType`/`proxyIp`/`proxyPort` 三项偏好。**配置了代理时不再安装 `EhSSLSocketFactory`**：走代理时目标是代理解析的（OkHttp 给 SOCKS 路由传的是未解析地址），socket 上拿不到可写进 SNI 的目标 IP —— 照旧改写会在 SOCKS 下 NPE 崩掉，在 HTTP 代理下则把 SNI 写成代理 IP |
 | `apply.sh` | 依次执行上述补丁；最后把 `applicationId` 加 `.cc` 后缀（对本 fork 包名无影响，属无害 no-op） |
 
-> 代理设置源于 EhViewer 早期版本（OkHttp 时代）内置的「自设代理地址」选项，后被 `53bbabab75 [DO NOT USE] Drop in-app proxy support` 删除。这里把它以现代 Compose 形式重新接回 `feat/smb-memfd` 的 OkHttp 引擎：直连 / 系统代理 / HTTP / SOCKS 四种模式，主机与端口在设置页内填写。默认是「系统代理」（与原 0002 直连意图可叠加：选直连即不走任何代理，选系统则跟随系统，选 HTTP/SOCKS 则走你填的地址）。
+> 代理设置源于 EhViewer 早期版本（OkHttp 时代）内置的「自设代理地址」选项，后被 `53bbabab75 [DO NOT USE] Drop in-app proxy support` 删除。这里把它以现代 Compose 形式重新接回 `feat/smb-memfd` 的 OkHttp 引擎：直连 / 系统代理 / HTTP / SOCKS 四种模式，主机与端口在设置页内填写。默认是「系统代理」。注意**「直连」和「系统代理」目前走同一条分支、都返回 `Proxy.NO_PROXY`，即都不走任何代理** —— 「系统代理」并不会跟随系统设置（要跟随得让 OkHttp 不调 `proxy()`，用 `ProxySelector.getDefault()`）；只有 HTTP / SOCKS 会走你填的地址。
 >
 > 注意：代理设置对话框的文案使用字面量字符串（非 moko 生成的资源），因为新加的 moko 字符串在 CI 里 AAPT `R` 重建不可靠；如需本地化，把 `AdvancedScreen.kt` 中的字面量换成 `R.string.*` 并确保资源重新生成即可。
 
