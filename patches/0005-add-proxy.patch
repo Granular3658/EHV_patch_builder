@@ -115,7 +115,7 @@ index 121160228..885bd38f6 100644
          }
      }
 diff --git a/app/src/main/kotlin/com/hippo/ehviewer/ui/settings/AdvancedScreen.kt b/app/src/main/kotlin/com/hippo/ehviewer/ui/settings/AdvancedScreen.kt
-index 53423a7a0..3ad6f05d9 100644
+index aef3241d4..4475b389c 100644
 --- a/app/src/main/kotlin/com/hippo/ehviewer/ui/settings/AdvancedScreen.kt
 +++ b/app/src/main/kotlin/com/hippo/ehviewer/ui/settings/AdvancedScreen.kt
 @@ -28,7 +28,20 @@ import androidx.compose.runtime.remember
@@ -147,7 +147,7 @@ index 53423a7a0..3ad6f05d9 100644
  import com.hippo.ehviewer.Settings
  import com.hippo.ehviewer.asMutableState
  import com.hippo.ehviewer.client.EhEngine
-@@ -234,6 +248,36 @@ fun AnimatedVisibilityScope.AdvancedScreen(navigator: DestinationsNavigator) = S
+@@ -233,6 +247,36 @@ fun AnimatedVisibilityScope.AdvancedScreen(navigator: DestinationsNavigator) = S
                      }
                  }
              }
@@ -184,7 +184,7 @@ index 53423a7a0..3ad6f05d9 100644
              if (isAtLeastO) {
                  IntSliderPreference(
                      maxValue = 16384,
-@@ -357,3 +401,63 @@ private fun openByDefaultSettings() = with(ctx) {
+@@ -356,3 +400,63 @@ private fun openByDefaultSettings() = with(ctx) {
          startActivity(intent)
      }
  }

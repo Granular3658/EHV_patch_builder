@@ -62,19 +62,18 @@ index 000000000..0bc01d901
 +}
 diff --git a/app/src/main/kotlin/com/hippo/ehviewer/client/EhDns.kt b/app/src/main/kotlin/com/hippo/ehviewer/client/EhDns.kt
 new file mode 100644
-index 000000000..3ce78c5de
+index 000000000..2854941ab
 --- /dev/null
 +++ b/app/src/main/kotlin/com/hippo/ehviewer/client/EhDns.kt
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,66 @@
 +package com.hippo.ehviewer.client
 +
 +import com.ehviewer.core.util.isAtLeastQ
 +import com.hippo.ehviewer.builtInHosts
 +import java.net.Inet4Address
 +import java.net.InetAddress
-+import okhttp3.AsyncDns
 +import okhttp3.Dns
-+import okhttp3.android.AndroidAsyncDns
++import okhttp3.android.AndroidDns
 +
 +private typealias HostsMap = MutableMap<String, List<InetAddress>>
 +
@@ -119,7 +118,7 @@ index 000000000..3ce78c5de
 +    }
 +}
 +
-+val systemDns = if (isAtLeastQ) AsyncDns.toDns(AndroidAsyncDns.IPv4, AndroidAsyncDns.IPv6) else Dns.SYSTEM
++val systemDns = if (isAtLeastQ) AndroidDns() else Dns.SYSTEM
 +
 +object EhDns : Dns {
 +    override fun lookup(hostname: String): List<InetAddress> = when {
@@ -181,10 +180,10 @@ index 000000000..1227df551
 +    sslSocketFactory(sslSocketFactory, trustManager)
 +}
 diff --git a/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt b/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt
-index a13cc9003..fcb996115 100644
+index b24552360..121160228 100644
 --- a/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt
 +++ b/app/src/main/kotlin/com/hippo/ehviewer/ktor/OkhttpExtensions.kt
-@@ -1,14 +1,18 @@
+@@ -1,13 +1,18 @@
  package com.hippo.ehviewer.ktor
  
 -import com.ehviewer.core.util.isAtLeastQ
@@ -193,14 +192,13 @@ index a13cc9003..fcb996115 100644
 +import com.hippo.ehviewer.client.EhSSLSocketFactory
 +import com.hippo.ehviewer.client.install
  import io.ktor.client.engine.okhttp.OkHttpConfig
+-import okhttp3.android.AndroidDns
 +import java.net.Proxy
--import okhttp3.AsyncDns
--import okhttp3.android.AndroidAsyncDns
  
  fun OkHttpConfig.configureClient() {
      config {
 -        if (isAtLeastQ) {
--            dns(AsyncDns.toDns(AndroidAsyncDns.IPv4, AndroidAsyncDns.IPv6))
+-            dns(AndroidDns())
 +        dns(EhDns)
 +        proxy(Proxy.NO_PROXY)
 +        if (!Settings.enableQuic.value) {
